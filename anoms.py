@@ -2,6 +2,7 @@ import numpy as np
 from pyloess import stl
 from scipy.stats import t
 from pandas import Series
+import pandas as pd
 from math import floor
 from breakout import detect_breakout
 import logging
@@ -42,6 +43,7 @@ def detect_anoms(x, period, max_anoms=0.10, alpha=0.05, direction='both', longte
         if np.isnan(v):
             raise ValueError("data contains NaN value.")
     ret = set()
+    stl_list = []
     e_values = None
     if e_value:
         e_values = [None] * len(x)  # To keep the expected values when e_value is set.
@@ -61,17 +63,18 @@ def detect_anoms(x, period, max_anoms=0.10, alpha=0.05, direction='both', longte
         window_x = x[window_start:window_end]
         if len(window_x) < period * 2:
             raise ValueError("Anom detection needs at least 2 periods worth of data.")
-        window_ret = _detect_anomaly_for_one_window(window_x, period, max_anoms, alpha, direction, e_values,
+        window_ret, stl = _detect_anomaly_for_one_window(window_x, period, max_anoms, alpha, direction, e_values,
                                                     window_start, breakout_kwargs)
         if threshold:
             window_ret = _post_processing_threshold(window_x, period, window_ret, threshold)
         ret = ret.union(window_ret)
+	stl_list.append(stl)
     if only_last:
         ret = _post_processing_only_last(x, ret, only_last)
     ret = sorted(ret)
     if e_value:
-        return ret, map(lambda i: e_values[i], ret)
-    return ret
+        return ret, map(lambda i: e_values[i], ret), stl_list
+    return ret, stl_list
 
 
 def _get_trends_by_median(x):
@@ -109,7 +112,7 @@ def _detect_anomaly_for_one_window(x, period, max_anoms, alpha, direction, e_val
         trends = stl_ret['trend']
         for i in range(0, len(x)):
             if e_values[window_start + i] is None:
-                e_values[window_start + i] = floor(seasons[i] + trends[i])
+                e_values[window_start + i] = (seasons[i] + trends[i])
     if breakout_kwargs:
         trends = _get_trends_by_breakout_detection(x, breakout_kwargs)
     else:
@@ -121,7 +124,7 @@ def _detect_anomaly_for_one_window(x, period, max_anoms, alpha, direction, e_val
     ret = set()
     for anom_i in anom_index:
         ret.add(window_start + anom_i)  # convert the index to the index in x
-    return ret
+    return ret, stl_ret
 
 
 def _post_processing_threshold(x, period, ret, threshold):
@@ -190,3 +193,4 @@ def _esd(x, max_outlier, alpha, direction):
             # we can stop.
             break
     return outlier_index
+
