@@ -11,7 +11,7 @@ logger = logging.getLogger('indeed.anoms')
 
 
 def detect_anoms(x, period, max_anoms=0.10, alpha=0.05, direction='both', longterm_period=None, only_last=None,
-                 threshold=None, e_value=False, breakout_kwargs=None):
+                 threshold=None, e_value=False, useStlTrend=False, breakout_kwargs=None):
     """
     Anomaly Detection Using Seasonal Hybrid ESD Test.
     :param x: a list of floats, which consists of the observations.
@@ -64,7 +64,7 @@ def detect_anoms(x, period, max_anoms=0.10, alpha=0.05, direction='both', longte
         if len(window_x) < period * 2:
             raise ValueError("Anom detection needs at least 2 periods worth of data.")
         window_ret, stl = _detect_anomaly_for_one_window(window_x, period, max_anoms, alpha, direction, e_values,
-                                                    window_start, breakout_kwargs)
+                                                    window_start, useStlTrend, breakout_kwargs)
         if threshold:
             window_ret = _post_processing_threshold(window_x, period, window_ret, threshold)
         ret = ret.union(window_ret)
@@ -101,7 +101,7 @@ def _get_trends_by_breakout_detection(x, kwargs):
     return trends
 
 
-def _detect_anomaly_for_one_window(x, period, max_anoms, alpha, direction, e_values, window_start, breakout_kwargs):
+def _detect_anomaly_for_one_window(x, period, max_anoms, alpha, direction, e_values, window_start, useStlTrend, breakout_kwargs):
     # The core part of anomaly detection:
     # 1. Use STL to perform seasonal decomposition.
     # parameters are copied from R's stl()
@@ -115,6 +115,8 @@ def _detect_anomaly_for_one_window(x, period, max_anoms, alpha, direction, e_val
                 e_values[window_start + i] = (seasons[i] + trends[i])
     if breakout_kwargs:
         trends = _get_trends_by_breakout_detection(x, breakout_kwargs)
+    elif useStlTrend:
+    	trends = stl_ret['trend']
     else:
         trends = _get_trends_by_median(x)
     residuals = [x[i] - seasons[i] - trends[i] for i in range(0, len(x))]
